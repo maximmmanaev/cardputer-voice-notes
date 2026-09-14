@@ -61,4 +61,4 @@ The primary path will use Telegram's client API through a local Telethon user se
 - The physical Spike A WAV was converted with ffmpeg 8.1.2 to OGG/Opus, mono, 48 kHz, 24 kbit/s. ffprobe reports 60.0065 seconds and 153,554 bytes.
 - `scripts/telegram_login.py` stores credentials and the Telethon session only in ignored local files with mode `0600`, lists group dialogs, saves the selected numeric group ID, and does not send a message.
 - `scripts/spike_b.py` resolves the numeric ID back to a Telegram group and requires the same ID as an explicit confirmation argument before it calls Telethon `send_file(..., voice_note=True)`.
-- Target group requested by the user: `Заметки`. The exact ID, resolved title and presence of `@smartspeech_sber_bot` still need live-session verification.
+- The live user session resolved the selected target as the requested group `Заметки`. `@smartspeech_sber_bot` was added through that session and its membership was verified. The exact numeric ID remains only in ignored local configuration; explicit confirmation is still required before the first send.

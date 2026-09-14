@@ -97,6 +97,8 @@ async def login_and_select() -> None:
         print("No message has been sent. Return to Codex for target confirmation.")
     finally:
         await client.disconnect()
+        if session_path.exists():
+            os.chmod(session_path, 0o600)
 
 
 if __name__ == "__main__":
