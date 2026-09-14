@@ -26,6 +26,18 @@ No upload, flash erase, partition-table change or SD formatting is performed by 
 
 The installed spike firmware starts its 60-second hardware recording with the physical **BtnG0** button. It writes to `.wav.part`, finalizes the WAV header, and atomically renames the result to `.wav`. `scripts/download_spike_wav.py` can copy the newest closed recording to the Mac over USB without removing the microSD.
 
+## Spike B authorization
+
+Create Telegram API credentials under **API development tools** at `https://my.telegram.org`, then run:
+
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install -r mac-agent/requirements-spike.txt
+.venv/bin/python scripts/telegram_login.py
+```
+
+The interactive script hides credentials and one-time codes, creates the ignored local Telethon session, and lets the user select a group. It does not send a message. The target title and numeric ID must be checked and explicitly confirmed before the Spike B voice is sent.
+
 ## Privacy
 
 Recording must be visible and consensual. Obtain consent from people being recorded and follow local law. Audio is local while it remains on Cardputer or Mac; after delivery to Telegram and SaluteSpeech it is processed by those services and is no longer fully local.

@@ -52,6 +52,13 @@ At 32,000 bytes/second, PCM uses 115.2 MB per hour and 9.6 MB per five-minute fr
 
 ## Spike B — Telethon voice to SaluteSpeech
 
-Status: **not started; gated on successful physical Spike A**.
+Status: **local conversion and authorization tooling are ready; waiting for local Telegram credentials, group selection and explicit target confirmation**.
 
 The primary path will use Telegram's client API through a local Telethon user session. A Bot API sender will not be used. The physical test requires local interactive entry of Telegram credentials and confirmation of the exact target chat before the first send.
+
+- Telethon 1.45.0 and python-dotenv 1.2.3 are installed in the ignored project `.venv` on macOS arm64.
+- Spike B followed test-first: the new tests initially failed because `scripts/spike_b.py` did not exist; after implementation the complete suite passes 11/11 tests.
+- The physical Spike A WAV was converted with ffmpeg 8.1.2 to OGG/Opus, mono, 48 kHz, 24 kbit/s. ffprobe reports 60.0065 seconds and 153,554 bytes.
+- `scripts/telegram_login.py` stores credentials and the Telethon session only in ignored local files with mode `0600`, lists group dialogs, saves the selected numeric group ID, and does not send a message.
+- `scripts/spike_b.py` resolves the numeric ID back to a Telegram group and requires the same ID as an explicit confirmation argument before it calls Telethon `send_file(..., voice_note=True)`.
+- Target group requested by the user: `Заметки`. The exact ID, resolved title and presence of `@smartspeech_sber_bot` still need live-session verification.
