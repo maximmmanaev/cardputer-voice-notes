@@ -2,7 +2,7 @@
 
 ## Spike A — Cardputer-Adv audio to microSD
 
-Status: **spike firmware is running on confirmed Cardputer-Adv with a writable 32 GB microSD; waiting for the physical 60-second recording/listening test**.
+Status: **the physical 60-second recording and all automated Mac validation passed; the listening confirmation is pending**.
 
 Official-source audit on 2026-09-14:
 
@@ -16,10 +16,10 @@ Official-source audit on 2026-09-14:
 Build result:
 
 - PlatformIO Core 6.2.0, Espressif32 platform 6.7.0 and Arduino-ESP32 2.0.16.
-- Release build succeeded: 27,560 bytes RAM (8.4%) and 548,109 bytes flash (16.4%).
+- Release build `spike-a-0.2.0` succeeded: 27,560 bytes RAM (8.4%) and 549,045 bytes flash (16.4%).
 - The dependency graph used M5Cardputer `1.1.1+sha.f139285` and M5Unified `0.2.22+sha.e79eb6e`.
 - The only warning was a Python `SyntaxWarning` inside the bundled esptool.py 4.5.1; there were no firmware compiler warnings or errors.
-- Host-side WAV validator followed test-first: its initial run failed because the implementation did not exist; after implementation, 2/2 unit tests pass.
+- Host-side WAV validation and USB download helpers followed test-first: each initial run failed because its implementation did not exist; after implementation, 6/6 unit tests pass.
 - The full local build log is stored outside git under `logs/spike-a-build-20260914.log`.
 
 Connected-device probe:
@@ -34,19 +34,21 @@ Deployment update:
 
 - Factory-flash strings independently identified `cardputer-adv`, `CardputerADV`, TCA8418 and factory version `V0.9-36-ge824a76` before any write.
 - The factory partition table is a single 4 MB `factory` app at `0x10000`; PlatformIO's generated OTA partition table differs. To preserve the factory layout, only `firmware.bin` was written at `0x10000`. Bootloader, partition table, NVS and microSD were not overwritten.
-- esptool verified the written image hash. The running firmware reports `spike-a-0.1.0`, M5 board ID 24 (`board_M5CardputerADV`) and 31,902,269,440 free bytes on the inserted card.
+- esptool verified the written image hash. The running firmware reports `spike-a-0.2.0`, M5 board ID 24 (`board_M5CardputerADV`) and a mounted 32 GB card.
 - A periodic serial heartbeat was added after the first boot showed that one-shot messages can be lost during native USB re-enumeration.
-- The remaining Spike A step is physical: press Enter once, speak for 60 seconds, then validate and listen to the closed WAV from the card.
+- The user recorded `/spike-a-0f3c-002.wav`; firmware closed it at exactly 960,000 samples and 1,920,044 bytes. The file was streamed from SD to Mac over USB without removing the card; SHA-256 is `a08b567a2d5617bb46b345dbce9a34724d763ee954cd830528654e3bd14ad4b6`.
+- ffprobe confirmed PCM signed 16-bit little-endian, mono, 16 kHz and exactly 60.000 seconds. ffmpeg found a -6.2 dBFS peak, no full-scale clipping and non-silent signal. A 15-second excerpt was played on the Mac; intelligibility and normal-speed listening still need human confirmation.
+- Per user preference, recording control was moved from Enter to the physical GPIO0 button, exposed as `M5Cardputer.BtnA` by the official library and labeled `BtnG0` in the UI.
 
 Physical pass criteria:
 
 1. USB VID/PID and ESP32-S3 bootloader identify the connected Cardputer-Adv; M5Unified reports `board_M5CardputerADV`.
 2. Existing flash is backed up before the first upload.
-3. With a user-provided FAT32 microSD inserted, Enter records exactly 960,000 mono samples and atomically renames `.wav.part` to `.wav`.
+3. With a user-provided FAT32 microSD inserted, BtnG0 records exactly 960,000 mono samples and atomically renames `.wav.part` to `.wav`.
 4. `scripts/validate_spike_wav.py` and ffprobe confirm PCM signed 16-bit little-endian, mono, 16 kHz and 60 seconds.
 5. A human listening check confirms intelligible speech at normal speed and correct channel layout.
 
-At 32,000 bytes/second, PCM uses 115.2 MB per hour and 9.6 MB per five-minute fragment. A nominal 32 GB card holds about 277.8 hours before filesystem overhead and the configured free-space reserve. Actual capacity will be reported from the inserted card; the firmware never formats it.
+At 32,000 bytes/second, PCM uses 115.2 MB per hour and 9.6 MB per five-minute fragment. A nominal 32 GB card holds about 277.8 hours before filesystem overhead and the configured free-space reserve. The inserted card initially reported 31,902,269,440 free bytes, equivalent to about 276.9 hours before a reserve. The firmware never formats it.
 
 ## Spike B — Telethon voice to SaluteSpeech
 

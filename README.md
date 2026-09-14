@@ -24,7 +24,8 @@ python3 -m venv .venv-platformio
 
 No upload, flash erase, partition-table change or SD formatting is performed by the build. Hardware deployment requires identification and backup first.
 
+The installed spike firmware starts its 60-second hardware recording with the physical **BtnG0** button. It writes to `.wav.part`, finalizes the WAV header, and atomically renames the result to `.wav`. `scripts/download_spike_wav.py` can copy the newest closed recording to the Mac over USB without removing the microSD.
+
 ## Privacy
 
 Recording must be visible and consensual. Obtain consent from people being recorded and follow local law. Audio is local while it remains on Cardputer or Mac; after delivery to Telegram and SaluteSpeech it is processed by those services and is no longer fully local.
-

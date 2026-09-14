@@ -56,7 +56,6 @@ uint32_t g_writtenSamples = 0;
 uint32_t g_lastCompletedAtMs = 0;
 uint32_t g_lastFlushSamples = 0;
 volatile bool g_queueOverflow = false;
-bool g_enterWasDown = false;
 uint32_t g_lastIdleStatusAtMs = 0;
 char g_partPath[64] = {};
 char g_finalPath[64] = {};
@@ -122,7 +121,7 @@ void drawStatus() {
         display.println("ADV AUDIO READY");
         display.setTextSize(1);
         display.setTextColor(WHITE, BLACK);
-        display.println("ENTER: record 60s");
+        display.println("BtnG0: record 60s");
         display.printf("SD free %llu MiB\n",
                        static_cast<unsigned long long>((SD.totalBytes() - SD.usedBytes()) / (1024ULL * 1024ULL)));
     }
@@ -269,6 +268,55 @@ void serviceRecording() {
     }
 }
 
+bool findLatestCompletedPath(char* path, size_t pathSize) {
+    const uint16_t deviceSuffix = static_cast<uint16_t>(ESP.getEfuseMac());
+    for (int sequence = 999; sequence >= 1; --sequence) {
+        snprintf(path, pathSize, "/spike-a-%04x-%03d.wav", deviceSuffix, sequence);
+        if (SD.exists(path)) return true;
+    }
+    path[0] = '\0';
+    return false;
+}
+
+void downloadLatestRecording() {
+    char path[64] = {};
+    if (!findLatestCompletedPath(path, sizeof(path))) {
+        Serial.println("SPIKE_A_DOWNLOAD_ERROR=no_completed_wav");
+        return;
+    }
+
+    File source = SD.open(path, FILE_READ);
+    if (!source) {
+        Serial.println("SPIKE_A_DOWNLOAD_ERROR=open_failed");
+        return;
+    }
+
+    const size_t size = source.size();
+    Serial.printf("SPIKE_A_DOWNLOAD_BEGIN path=%s size=%u\n", path, static_cast<unsigned>(size));
+    Serial.flush();
+
+    uint8_t buffer[4096];
+    size_t sent = 0;
+    while (source.available()) {
+        const size_t count = source.read(buffer, sizeof(buffer));
+        if (count == 0) break;
+        size_t offset = 0;
+        while (offset < count) {
+            const size_t written = Serial.write(buffer + offset, count - offset);
+            if (written == 0) {
+                delay(1);
+                continue;
+            }
+            offset += written;
+            sent += written;
+        }
+    }
+    source.close();
+    Serial.write('\n');
+    Serial.printf("SPIKE_A_DOWNLOAD_END size=%u\n", static_cast<unsigned>(sent));
+    Serial.flush();
+}
+
 void haltWithBootError(const char* message) {
     Serial.printf("SPIKE_A_BOOT_ERROR=%s\n", message);
     M5Cardputer.Display.fillScreen(BLACK);
@@ -327,9 +375,11 @@ void loop() {
         return;
     }
 
-    const bool enterDown = M5Cardputer.Keyboard.keysState().enter;
-    if (enterDown && !g_enterWasDown && g_state == State::Idle) startRecording();
-    g_enterWasDown = enterDown;
+    if (Serial.available()) {
+        const int command = Serial.read();
+        if (command == 'D') downloadLatestRecording();
+    }
+    if (M5Cardputer.BtnA.wasPressed() && g_state == State::Idle) startRecording();
     if (g_state == State::Idle && millis() - g_lastIdleStatusAtMs >= 2000) {
         g_lastIdleStatusAtMs = millis();
         Serial.printf("SPIKE_A_STATUS=IDLE firmware=%s board=%d sd_free=%llu\n",
