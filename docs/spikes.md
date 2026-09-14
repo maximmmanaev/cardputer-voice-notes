@@ -2,7 +2,7 @@
 
 ## Spike A — Cardputer-Adv audio to microSD
 
-Status: **release firmware built and the connected ESP32-S3 backed up; flashing waits for physical confirmation that the unit is labeled Cardputer-Adv**.
+Status: **spike firmware is running on confirmed Cardputer-Adv with a writable 32 GB microSD; waiting for the physical 60-second recording/listening test**.
 
 Official-source audit on 2026-09-14:
 
@@ -28,7 +28,15 @@ Connected-device probe:
 - ROM: ESP32-S3 revision 0.2, 40 MHz crystal, Wi-Fi/BLE; MAC recorded locally and shown in reports only as `3c:0f:…:72:a8`.
 - Flash: 8 MB, quad data lines.
 - A complete read-only backup of `0x000000–0x7fffff` succeeded before any upload: 8,388,608 bytes, SHA-256 `a4482fbecbc9fbd735ff6ec077303ac2e709064cca29df52625a5a1e0e6fc9db`. The ignored `backups/` directory also contains the exact restore command. This backup does not include microSD.
-- No erase or write operation has run. USB ROM data alone cannot distinguish Cardputer-Adv from the older ESP32-S3 Cardputer enclosure, so physical model confirmation remains mandatory.
+- Before the upload, no erase or write operation had run. The factory image strings then confirmed Cardputer-Adv independently; the deployment below wrote only the application range after the full flash backup completed.
+
+Deployment update:
+
+- Factory-flash strings independently identified `cardputer-adv`, `CardputerADV`, TCA8418 and factory version `V0.9-36-ge824a76` before any write.
+- The factory partition table is a single 4 MB `factory` app at `0x10000`; PlatformIO's generated OTA partition table differs. To preserve the factory layout, only `firmware.bin` was written at `0x10000`. Bootloader, partition table, NVS and microSD were not overwritten.
+- esptool verified the written image hash. The running firmware reports `spike-a-0.1.0`, M5 board ID 24 (`board_M5CardputerADV`) and 31,902,269,440 free bytes on the inserted card.
+- A periodic serial heartbeat was added after the first boot showed that one-shot messages can be lost during native USB re-enumeration.
+- The remaining Spike A step is physical: press Enter once, speak for 60 seconds, then validate and listen to the closed WAV from the card.
 
 Physical pass criteria:
 

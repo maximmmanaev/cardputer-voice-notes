@@ -57,6 +57,7 @@ uint32_t g_lastCompletedAtMs = 0;
 uint32_t g_lastFlushSamples = 0;
 volatile bool g_queueOverflow = false;
 bool g_enterWasDown = false;
+uint32_t g_lastIdleStatusAtMs = 0;
 char g_partPath[64] = {};
 char g_finalPath[64] = {};
 String g_error;
@@ -277,7 +278,10 @@ void haltWithBootError(const char* message) {
     M5Cardputer.Display.println("BOOT ERROR");
     M5Cardputer.Display.setTextSize(1);
     M5Cardputer.Display.println(message);
-    while (true) delay(1000);
+    while (true) {
+        Serial.printf("SPIKE_A_BOOT_ERROR=%s firmware=%s\n", message, FIRMWARE_VERSION);
+        delay(2000);
+    }
 }
 
 }  // namespace
@@ -326,6 +330,12 @@ void loop() {
     const bool enterDown = M5Cardputer.Keyboard.keysState().enter;
     if (enterDown && !g_enterWasDown && g_state == State::Idle) startRecording();
     g_enterWasDown = enterDown;
+    if (g_state == State::Idle && millis() - g_lastIdleStatusAtMs >= 2000) {
+        g_lastIdleStatusAtMs = millis();
+        Serial.printf("SPIKE_A_STATUS=IDLE firmware=%s board=%d sd_free=%llu\n",
+                      FIRMWARE_VERSION,
+                      static_cast<int>(M5.getBoard()),
+                      static_cast<unsigned long long>(SD.totalBytes() - SD.usedBytes()));
+    }
     delay(10);
 }
-
