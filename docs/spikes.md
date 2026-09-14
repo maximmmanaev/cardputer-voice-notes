@@ -52,7 +52,7 @@ At 32,000 bytes/second, PCM uses 115.2 MB per hour and 9.6 MB per five-minute fr
 
 ## Spike B — Telethon voice to SaluteSpeech
 
-Status: **local conversion and authorization tooling are ready; waiting for local Telegram credentials, group selection and explicit target confirmation**.
+Status: **Telethon sent the physical recording as a voice note and SaluteSpeech replied; visual confirmation that the reply is a transcript is pending**.
 
 The primary path will use Telegram's client API through a local Telethon user session. A Bot API sender will not be used. The physical test requires local interactive entry of Telegram credentials and confirmation of the exact target chat before the first send.
 
@@ -61,4 +61,5 @@ The primary path will use Telegram's client API through a local Telethon user se
 - The physical Spike A WAV was converted with ffmpeg 8.1.2 to OGG/Opus, mono, 48 kHz, 24 kbit/s. ffprobe reports 60.0065 seconds and 153,554 bytes.
 - `scripts/telegram_login.py` stores credentials and the Telethon session only in ignored local files with mode `0600`, lists group dialogs, saves the selected numeric group ID, and does not send a message.
 - `scripts/spike_b.py` resolves the numeric ID back to a Telegram group and requires the same ID as an explicit confirmation argument before it calls Telethon `send_file(..., voice_note=True)`.
-- The live user session resolved the selected target as the requested group `Заметки`. `@smartspeech_sber_bot` was added through that session and its membership was verified. The exact numeric ID remains only in ignored local configuration; explicit confirmation is still required before the first send.
+- The live user session resolved the selected target as the requested group `Заметки`. `@smartspeech_sber_bot` was added through that session and its membership was verified. The exact numeric ID remains only in ignored local configuration, and the user explicitly confirmed the resolved target before the first send.
+- The user explicitly confirmed the resolved target. Telethon sent the OGG/Opus with `voice_note=True` as Telegram message `240609`; `@smartspeech_sber_bot` replied as message `240610`. Message text was not written to project logs. The user must visually confirm that the reply contains the expected transcription rather than a service error before Spike B is marked passed.
