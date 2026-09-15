@@ -49,6 +49,7 @@ uint32_t g_recordingStartedAtMs = 0;
 uint32_t g_lastInputAtMs = 0;
 uint32_t g_lastDrawAtMs = 0;
 uint32_t g_lastSyncAtMs = 0;
+uint32_t g_lastHeartbeatAtMs = 0;
 uint32_t g_sessionNumber = 0;
 uint32_t g_bootNumber = 0;
 uint16_t g_segmentNumber = 0;
@@ -61,6 +62,20 @@ String g_statusDetail;
 String g_currentPartPath;
 String g_currentFinalPath;
 SPIClass g_sdSpi(FSPI);
+
+const char* stateName(State state) {
+    switch (state) {
+        case State::Idle: return "IDLE";
+        case State::Recording: return "RECORDING";
+        case State::Stopping: return "STOPPING";
+        case State::Syncing: return "SYNCING";
+        case State::SyncError: return "SYNC_ERROR";
+        case State::SyncCancelled: return "SYNC_CANCELLED";
+        case State::SdError: return "SD_ERROR";
+        case State::LowSpace: return "LOW_SPACE";
+    }
+    return "UNKNOWN";
+}
 
 uint64_t freeBytes() {
     return SD.totalBytes() - SD.usedBytes();
@@ -781,6 +796,15 @@ void loop() {
     if (g0Pressed) {
         if (g_state == State::Recording) requestStopRecording();
         else if (g_state == State::Idle || g_state == State::SyncError || g_state == State::SyncCancelled) startRecording();
+    }
+
+    if (millis() - g_lastHeartbeatAtMs >= 5000) {
+        g_lastHeartbeatAtMs = millis();
+        Serial.printf("RECORDER_HEARTBEAT firmware=%s board=%d state=%s sd_free=%llu\n",
+                      FIRMWARE_VERSION,
+                      static_cast<int>(M5.getBoard()),
+                      stateName(g_state),
+                      freeBytes());
     }
 
     const bool sDown = std::find(keys.word.begin(), keys.word.end(), 's') != keys.word.end();

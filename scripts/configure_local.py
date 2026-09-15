@@ -8,6 +8,7 @@ import getpass
 import os
 import secrets
 import socket
+import subprocess
 from pathlib import Path
 
 from dotenv import dotenv_values, set_key
@@ -17,6 +18,15 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def local_ipv4() -> str:
+    # On macOS, the default route may point at a VPN/TUN adapter (for example
+    # 198.18.0.0/15). Cardputer must receive the physical Wi-Fi address.
+    for interface in ("en0", "en1", "en2", "en3"):
+        result = subprocess.run(
+            ["ipconfig", "getifaddr", interface], check=False, capture_output=True, text=True
+        )
+        candidate = result.stdout.strip()
+        if candidate.startswith(("10.", "192.168.")) or candidate.startswith(tuple(f"172.{item}." for item in range(16, 32))):
+            return candidate
     probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
         probe.connect(("1.1.1.1", 53))
@@ -53,7 +63,7 @@ def main() -> int:
     data_root = str((ROOT / "data" / "agent").resolve())
     updates = {
         "DEVICE_TOKEN": token,
-        "LISTEN_HOST": "0.0.0.0",
+        "LISTEN_HOST": ip_address,
         "LISTEN_PORT": str(port),
         "DATA_ROOT": data_root,
         "FFMPEG_PATH": "/opt/homebrew/bin/ffmpeg",

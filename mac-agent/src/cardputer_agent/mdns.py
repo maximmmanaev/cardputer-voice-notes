@@ -1,11 +1,19 @@
 from __future__ import annotations
 
 import socket
+import subprocess
 
 from zeroconf import IPVersion, ServiceInfo, Zeroconf
 
 
 def local_ipv4() -> str:
+    for interface in ("en0", "en1", "en2", "en3"):
+        result = subprocess.run(
+            ["ipconfig", "getifaddr", interface], check=False, capture_output=True, text=True
+        )
+        candidate = result.stdout.strip()
+        if candidate.startswith(("10.", "192.168.")) or candidate.startswith(tuple(f"172.{item}." for item in range(16, 32))):
+            return candidate
     probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
         probe.connect(("1.1.1.1", 53))
