@@ -48,8 +48,8 @@ uint32_t g_lastFlushSamples = 0;
 uint32_t g_recordingStartedAtMs = 0;
 uint32_t g_lastInputAtMs = 0;
 uint32_t g_lastDrawAtMs = 0;
-uint32_t g_lastSyncAtMs = 0;
 uint32_t g_lastHeartbeatAtMs = 0;
+uint32_t g_nextSyncAtMs = 0;
 uint32_t g_sessionNumber = 0;
 uint32_t g_bootNumber = 0;
 uint16_t g_segmentNumber = 0;
@@ -58,6 +58,7 @@ volatile bool g_queueOverflow = false;
 bool g_stopRequested = false;
 bool g_syncRequested = false;
 bool g_sWasDown = false;
+uint8_t g_syncFailureCount = 0;
 String g_statusDetail;
 String g_currentPartPath;
 String g_currentFinalPath;
@@ -84,6 +85,10 @@ uint64_t freeBytes() {
 String basenameOf(const String& path) {
     const int slash = path.lastIndexOf('/');
     return slash >= 0 ? path.substring(slash + 1) : path;
+}
+
+String absoluteSdPath(const String& path) {
+    return path.startsWith("/") ? path : String("/") + path;
 }
 
 bool isClosedRecordingName(const String& name) {
@@ -123,7 +128,7 @@ String oldestSyncedRecording() {
     if (!root) return {};
     String oldest;
     for (File entry = root.openNextFile(); entry; entry = root.openNextFile()) {
-        const String name = entry.name();
+        const String name = absoluteSdPath(entry.name());
         const bool candidate = !entry.isDirectory() && isClosedRecordingName(name) && isSynced(name);
         entry.close();
         if (candidate && (oldest.isEmpty() || basenameOf(name) < basenameOf(oldest))) oldest = name;
@@ -179,7 +184,7 @@ void drawStatus(bool force = false) {
             display.setTextSize(1);
             display.setTextColor(WHITE, BLACK);
             display.println(g_statusDetail);
-            display.println("Fn+`: cancel upload");
+            display.println("BtnG0: cancel sync");
             break;
         case State::SyncCancelled:
             display.setTextColor(YELLOW, BLACK);
@@ -421,7 +426,7 @@ void recoverPartials() {
     File root = SD.open("/");
     if (!root) return;
     for (File entry = root.openNextFile(); entry; entry = root.openNextFile()) {
-        const String name = entry.name();
+        const String name = absoluteSdPath(entry.name());
         if (!entry.isDirectory() && name.endsWith(".wav.part")) paths.push_back(name);
         entry.close();
     }
@@ -451,7 +456,7 @@ String nextUnsyncedRecording() {
     if (!root) return {};
     String selected;
     for (File entry = root.openNextFile(); entry; entry = root.openNextFile()) {
-        const String name = entry.name();
+        const String name = absoluteSdPath(entry.name());
         const bool candidate = !entry.isDirectory() && isClosedRecordingName(name) && !isSynced(name);
         entry.close();
         if (candidate && (selected.isEmpty() || basenameOf(name) < basenameOf(selected))) selected = name;
@@ -462,9 +467,9 @@ String nextUnsyncedRecording() {
 
 bool checkCancelKey() {
     M5Cardputer.update();
-    const bool esc = M5Cardputer.Keyboard.keysState().esc;
-    if (esc) noteInput();
-    return esc;
+    const bool cancel = M5Cardputer.BtnA.wasPressed() || M5Cardputer.Keyboard.keysState().esc;
+    if (cancel) noteInput();
+    return cancel;
 }
 
 bool connectKnownWifi() {
@@ -485,9 +490,11 @@ bool connectKnownWifi() {
     }
     if (WiFi.status() != WL_CONNECTED) {
         g_statusDetail = "Known Wi-Fi unavailable";
+        Serial.printf("SYNC_WIFI_ERROR status=%d\n", static_cast<int>(WiFi.status()));
         WiFi.disconnect(true);
         return false;
     }
+    Serial.printf("SYNC_WIFI_CONNECTED ip=%s rssi=%ld\n", WiFi.localIP().toString().c_str(), static_cast<long>(WiFi.RSSI()));
     return true;
 }
 
@@ -498,13 +505,24 @@ bool resolveAgent(IPAddress& address, uint16_t& port) {
     snprintf(host, sizeof(host), "cardputer-%04x", suffix);
     if (MDNS.begin(host)) {
         const int count = MDNS.queryService("cardputer-sync", "tcp");
-        if (count > 0) {
-            address = MDNS.IP(0);
-            port = MDNS.port(0);
-            return true;
+        const IPAddress local = WiFi.localIP();
+        for (int index = 0; index < count; ++index) {
+            const IPAddress candidate = MDNS.IP(index);
+            Serial.printf("SYNC_MDNS_RESULT index=%d ip=%s port=%u\n",
+                          index, candidate.toString().c_str(), MDNS.port(index));
+            const bool sameSubnet = candidate[0] == local[0] && candidate[1] == local[1] && candidate[2] == local[2];
+            if (sameSubnet) {
+                address = candidate;
+                port = MDNS.port(index);
+                Serial.printf("SYNC_AGENT_SOURCE=mdns ip=%s port=%u\n", address.toString().c_str(), port);
+                return true;
+            }
         }
     }
-    if (strlen(RECORDER_SYNC_FALLBACK_IP) > 0 && address.fromString(RECORDER_SYNC_FALLBACK_IP)) return true;
+    if (strlen(RECORDER_SYNC_FALLBACK_IP) > 0 && address.fromString(RECORDER_SYNC_FALLBACK_IP)) {
+        Serial.printf("SYNC_AGENT_SOURCE=fallback ip=%s port=%u\n", address.toString().c_str(), port);
+        return true;
+    }
     g_statusDetail = "Mac agent not found";
     return false;
 }
@@ -568,6 +586,9 @@ bool fetchRemoteStatus(const IPAddress& address, uint16_t port, const String& id
     http.addHeader("Authorization", String("Bearer ") + RECORDER_DEVICE_TOKEN);
     const int status = http.GET();
     const String body = status > 0 ? http.getString() : String();
+    if (status != 200) {
+        Serial.printf("SYNC_STATUS_HTTP=%d error=%s\n", status, http.errorToString(status).c_str());
+    }
     http.end();
     return status == 200 && parseStatusJson(body, offset, durableAck);
 }
@@ -684,29 +705,61 @@ bool syncOne(const IPAddress& address, uint16_t port, const String& path) {
     const String id = recordingId(path);
     size_t offset = 0;
     bool durableAck = false;
-    if (!fetchRemoteStatus(address, port, id, offset, durableAck)) return false;
+    if (!fetchRemoteStatus(address, port, id, offset, durableAck)) {
+        g_statusDetail = "Mac request failed";
+        return false;
+    }
     if (durableAck) return appendSyncedAck(path);
     char hash[65];
     g_statusDetail = basenameOf(path) + " hashing";
     drawStatus(true);
-    if (!sha256File(path, hash)) return false;
-    if (!uploadFromOffset(address, port, path, id, offset, hash)) return false;
+    if (!sha256File(path, hash)) {
+        if (g_state != State::SyncCancelled) g_statusDetail = "Cannot read WAV";
+        return false;
+    }
+    if (!uploadFromOffset(address, port, path, id, offset, hash)) {
+        if (g_state != State::SyncCancelled) g_statusDetail = "Upload interrupted";
+        return false;
+    }
     return appendSyncedAck(path);
+}
+
+uint32_t normalSyncInterval() {
+    return M5.Power.isCharging() == m5::Power_Class::is_charging ? kChargingSyncMs : kIdleSyncMs;
+}
+
+void scheduleNormalSync() {
+    g_nextSyncAtMs = millis() + normalSyncInterval();
+}
+
+void scheduleFailedSync() {
+    ++g_syncFailureCount;
+    const uint8_t exponent = std::min<uint8_t>(g_syncFailureCount, 5);
+    const uint32_t baseMs = std::min<uint32_t>(10 * 60 * 1000, 15000UL << exponent);
+    const uint32_t jitterMs = esp_random() % 5001;
+    g_nextSyncAtMs = millis() + baseMs + jitterMs;
+    Serial.printf("SYNC_RETRY_SCHEDULED_MS=%lu failures=%u\n",
+                  static_cast<unsigned long>(baseMs + jitterMs),
+                  static_cast<unsigned>(g_syncFailureCount));
 }
 
 void runSyncCycle() {
     g_syncRequested = false;
-    g_lastSyncAtMs = millis();
     if (nextUnsyncedRecording().isEmpty()) {
         g_state = State::Idle;
+        g_syncFailureCount = 0;
+        scheduleNormalSync();
         return;
     }
+    Serial.printf("SYNC_CYCLE_STARTED pending=%s\n", basenameOf(nextUnsyncedRecording()).c_str());
     g_state = State::Syncing;
     g_statusDetail = "Connecting Wi-Fi";
     noteInput();
     drawStatus(true);
     if (!connectKnownWifi()) {
         if (g_state != State::SyncCancelled) g_state = State::SyncError;
+        if (g_state == State::SyncCancelled) scheduleNormalSync();
+        else scheduleFailedSync();
         drawStatus(true);
         return;
     }
@@ -715,6 +768,7 @@ void runSyncCycle() {
     if (!resolveAgent(address, port)) {
         g_state = State::SyncError;
         WiFi.disconnect(true);
+        scheduleFailedSync();
         drawStatus(true);
         return;
     }
@@ -726,17 +780,24 @@ void runSyncCycle() {
         drawStatus(true);
         if (!syncOne(address, port, path)) {
             failure = g_state != State::SyncCancelled;
+            Serial.printf("SYNC_FILE_FAILED=%s detail=%s\n", basenameOf(path).c_str(), g_statusDetail.c_str());
             break;
         }
         Serial.printf("SYNC_DURABLE_ACK=%s\n", basenameOf(path).c_str());
     }
     WiFi.disconnect(true);
     if (g_state == State::SyncCancelled) {
+        scheduleNormalSync();
         drawStatus(true);
         return;
     }
     g_state = failure ? State::SyncError : State::Idle;
-    g_statusDetail = failure ? "Will retry later" : "Sync complete";
+    if (failure) scheduleFailedSync();
+    else {
+        g_syncFailureCount = 0;
+        g_statusDetail = "Sync complete";
+        scheduleNormalSync();
+    }
     drawStatus(true);
 }
 
@@ -781,6 +842,7 @@ void setup() {
     if (!g_completed) haltWithBootError("Audio queue alloc failed");
     recoverPartials();
     if (!ensureRecordingSpace()) g_state = State::LowSpace;
+    g_syncRequested = !nextUnsyncedRecording().isEmpty();
     Serial.printf("CARDPUTER_ADV_READY=1 boot=%lu sd_free=%llu\n",
                   static_cast<unsigned long>(g_bootNumber),
                   freeBytes());
@@ -794,17 +856,19 @@ void loop() {
     if (g0Pressed || M5Cardputer.Keyboard.isPressed()) noteInput();
 
     if (g0Pressed) {
+        Serial.printf("BTNG0_PRESSED state=%s\n", stateName(g_state));
         if (g_state == State::Recording) requestStopRecording();
         else if (g_state == State::Idle || g_state == State::SyncError || g_state == State::SyncCancelled) startRecording();
     }
 
     if (millis() - g_lastHeartbeatAtMs >= 5000) {
         g_lastHeartbeatAtMs = millis();
-        Serial.printf("RECORDER_HEARTBEAT firmware=%s board=%d state=%s sd_free=%llu\n",
+        Serial.printf("RECORDER_HEARTBEAT firmware=%s board=%d state=%s sd_free=%llu detail=%s\n",
                       FIRMWARE_VERSION,
                       static_cast<int>(M5.getBoard()),
                       stateName(g_state),
-                      freeBytes());
+                      freeBytes(),
+                      g_statusDetail.c_str());
     }
 
     const bool sDown = std::find(keys.word.begin(), keys.word.end(), 's') != keys.word.end();
@@ -817,8 +881,7 @@ void loop() {
         return;
     }
 
-    const uint32_t syncInterval = M5.Power.isCharging() == m5::Power_Class::is_charging ? kChargingSyncMs : kIdleSyncMs;
-    if (!g_syncRequested && millis() - g_lastSyncAtMs >= syncInterval) g_syncRequested = true;
+    if (!g_syncRequested && static_cast<int32_t>(millis() - g_nextSyncAtMs) >= 0) g_syncRequested = true;
     if (g_syncRequested) runSyncCycle();
     drawStatus();
     serviceBacklight();
