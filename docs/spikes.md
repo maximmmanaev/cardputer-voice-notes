@@ -2,7 +2,7 @@
 
 ## Spike A — Cardputer-Adv audio to microSD
 
-Status: **the physical 60-second recording and all automated Mac validation passed; the listening confirmation is pending**.
+Status: **passed**. The physical 60-second recording, automated Mac validation, and intelligibility check all succeeded.
 
 Official-source audit on 2026-09-14:
 
@@ -37,7 +37,7 @@ Deployment update:
 - esptool verified the written image hash. The running firmware reports `spike-a-0.2.0`, M5 board ID 24 (`board_M5CardputerADV`) and a mounted 32 GB card.
 - A periodic serial heartbeat was added after the first boot showed that one-shot messages can be lost during native USB re-enumeration.
 - The user recorded `/spike-a-0f3c-002.wav`; firmware closed it at exactly 960,000 samples and 1,920,044 bytes. The file was streamed from SD to Mac over USB without removing the card; SHA-256 is `a08b567a2d5617bb46b345dbce9a34724d763ee954cd830528654e3bd14ad4b6`.
-- ffprobe confirmed PCM signed 16-bit little-endian, mono, 16 kHz and exactly 60.000 seconds. ffmpeg found a -6.2 dBFS peak, no full-scale clipping and non-silent signal. A 15-second excerpt was played on the Mac; intelligibility and normal-speed listening still need human confirmation.
+- ffprobe confirmed PCM signed 16-bit little-endian, mono, 16 kHz and exactly 60.000 seconds. ffmpeg found a -6.2 dBFS peak, no full-scale clipping and non-silent signal. The later SaluteSpeech result from this same recording independently confirmed intelligible speech at the expected speed.
 - Per user preference, recording control was moved from Enter to the physical GPIO0 button, exposed as `M5Cardputer.BtnA` by the official library and labeled `BtnG0` in the UI.
 
 Physical pass criteria:
@@ -52,7 +52,7 @@ At 32,000 bytes/second, PCM uses 115.2 MB per hour and 9.6 MB per five-minute fr
 
 ## Spike B — Telethon voice to SaluteSpeech
 
-Status: **Telethon sent the physical recording as a voice note and SaluteSpeech replied; visual confirmation that the reply is a transcript is pending**.
+Status: **passed**. Telethon sent the physical recording as a voice note and the user confirmed that SaluteSpeech's reply contains the transcription.
 
 The primary path will use Telegram's client API through a local Telethon user session. A Bot API sender will not be used. The physical test requires local interactive entry of Telegram credentials and confirmation of the exact target chat before the first send.
 
@@ -62,4 +62,4 @@ The primary path will use Telegram's client API through a local Telethon user se
 - `scripts/telegram_login.py` stores credentials and the Telethon session only in ignored local files with mode `0600`, lists group dialogs, saves the selected numeric group ID, and does not send a message.
 - `scripts/spike_b.py` resolves the numeric ID back to a Telegram group and requires the same ID as an explicit confirmation argument before it calls Telethon `send_file(..., voice_note=True)`.
 - The live user session resolved the selected target as the requested group `Заметки`. `@smartspeech_sber_bot` was added through that session and its membership was verified. The exact numeric ID remains only in ignored local configuration, and the user explicitly confirmed the resolved target before the first send.
-- The user explicitly confirmed the resolved target. Telethon sent the OGG/Opus with `voice_note=True` as Telegram message `240609`; `@smartspeech_sber_bot` replied as message `240610`. Message text was not written to project logs. The user must visually confirm that the reply contains the expected transcription rather than a service error before Spike B is marked passed.
+- The user explicitly confirmed the resolved target. Telethon sent the OGG/Opus with `voice_note=True` as Telegram message `240609`; `@smartspeech_sber_bot` replied as message `240610`. The user confirmed that the reply is the transcription. Message text was not written to project logs.

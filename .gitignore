@@ -7,6 +7,9 @@
 .venv/
 .venv-platformio/
 .pio/
+firmware/include/local_config.h
+mac-agent/src/*.egg-info/
+mac-agent/src/**/*.egg-info/
 backups/
 data/
 incoming/
@@ -14,9 +17,9 @@ ready/
 sent/
 failed/
 logs/
+*.plist.local
 *.wav
 *.wav.part
 *.ogg
 __pycache__/
 *.py[cod]
-

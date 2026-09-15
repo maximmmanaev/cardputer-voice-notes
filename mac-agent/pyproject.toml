@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=80"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cardputer-recorder-agent"
+version = "0.1.0"
+description = "LAN receiver and Telegram voice sender for Cardputer-Adv recordings"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi==0.141.1",
+  "python-dotenv==1.2.3",
+  "Telethon==1.45.0",
+  "uvicorn==0.53.0",
+  "zeroconf==0.151.3",
+]
+
+[project.optional-dependencies]
+test = [
+  "httpx==0.28.1",
+  "pytest==9.1.1",
+]
+
+[project.scripts]
+cardputer-agent = "cardputer_agent.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.ganzoliki.cardputer-recorder</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>PROJECT_ROOT/.venv/bin/python</string>
+    <string>-m</string><string>cardputer_agent.cli</string>
+    <string>--env</string><string>PROJECT_ROOT/.env</string><string>serve</string>
+  </array>
+  <key>WorkingDirectory</key><string>PROJECT_ROOT</string>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>
+  <key>ProcessType</key><string>Background</string>
+  <key>ThrottleInterval</key><integer>10</integer>
+</dict>
+</plist>

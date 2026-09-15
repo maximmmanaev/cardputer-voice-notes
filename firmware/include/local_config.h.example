@@ -1,0 +1,7 @@
+#pragma once
+
+#define RECORDER_WIFI_SSID ""
+#define RECORDER_WIFI_PASSWORD ""
+#define RECORDER_DEVICE_TOKEN ""
+#define RECORDER_SYNC_FALLBACK_IP ""
+#define RECORDER_SYNC_PORT 8765
