@@ -65,6 +65,9 @@ def main() -> int:
             return 0
         if args.command == "serve":
             settings.validate(require_telegram=True)
+            from .logging_setup import configure_service_logging
+
+            configure_service_logging(settings)
             publisher = MdnsPublisher(settings.listen_port)
             publisher.start()
             try:
@@ -74,6 +77,7 @@ def main() -> int:
                     port=settings.listen_port,
                     access_log=False,
                     log_level="info",
+                    log_config=None,
                 )
             finally:
                 publisher.close()

@@ -143,7 +143,7 @@ rm "$HOME/Library/LaunchAgents/com.ganzoliki.cardputer-recorder.plist"
 .venv/bin/cardputer-agent --env .env retry-failed
 ```
 
-Данные имеют права `0700` и лежат в `data/agent/{incoming,ready,sent,failed,logs}`. Исходные WAV после отправки сохраняются в `sent/`; retention на Mac выключен. Access log HTTP отключён, Telegram-текст и токены не пишутся.
+Данные имеют права `0700` и лежат в `data/agent/{incoming,ready,sent,failed,logs}`. Исходные WAV после отправки сохраняются в `sent/`; retention на Mac выключен. Access log HTTP отключён, Telegram-текст и токены не пишутся. Технический `logs/agent.log` имеет права `0600`, ротируется по 5 MiB и хранит не более трёх архивов.
 
 ## Тесты
 

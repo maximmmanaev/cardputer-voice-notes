@@ -38,8 +38,8 @@ def main() -> int:
         "KeepAlive": {"SuccessfulExit": False},
         "ProcessType": "Background",
         "ThrottleInterval": 10,
-        "StandardOutPath": str(logs / "agent.stdout.log"),
-        "StandardErrorPath": str(logs / "agent.stderr.log"),
+        "StandardOutPath": "/dev/null",
+        "StandardErrorPath": "/dev/null",
         "EnvironmentVariables": {"PYTHONUNBUFFERED": "1"},
     }
     temporary = destination.with_suffix(".plist.tmp")
